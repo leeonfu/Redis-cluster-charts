@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    app: {{ include "redis-cluster.fullname" . }}
+  name: {{ include "redis-cluster.fullname" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Values.matchLabels }}
+  serviceName: redis-cluster
+  template:
+    metadata:
+      labels:
+        app: redis-cluster
+    spec:
+      containers:
+        - command:
+            ["/bin/bash", "/usr/local/etc/redis/update-node.sh", "redis-server", "/usr/local/etc/redis/redis.conf"]
+          env:
+            - name: MY_POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: TZ
+              value: Asia/Shanghai
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          name: redis
+          resources:
+            requests:
+              memory: "300Mi"
+              cpu: "250m"
+            limits:
+              memory: "3072Mi"
+              cpu: "500m"
+          ports:
+            - containerPort: {{ .Values.redis.port }}
+              hostPort: {{ .Values.redis.port }}
+              name: redis-port
+              protocol: TCP
+          volumeMounts:
+            - mountPath: /data
+              {{- if .Values.storageClass.claimName }}
+              name: {{ .Values.storageClass.claimName }}
+              {{- else }}
+              name: redis-nfs-claim-auto
+              {{- end }}
+              subPath: data
+              readOnly: false
+            - mountPath: /usr/local/etc/redis
+              name: redis-config
+              readOnly: false
+      dnsPolicy: ClusterFirst
+      volumes:
+        - name: redis-config
+          configMap:
+            name: redis-config
+  volumeClaimTemplates:
+    - metadata:
+        {{- if .Values.storageClass.claimName }}
+        name: {{ .Values.storageClass.claimName }}
+        {{- else }}
+        name: redis-nfs-claim-auto
+        {{- end }}
+        annotations:
+          volume.beta.kubernetes.io/storage-class: "{{ .Values.storageClass.name }}"
+        namespace: default
+      spec:
+        accessModes: [ "ReadWriteMany" ]
+        storageClassName: "{{ .Values.storageClass.name }}"
+        resources:
+          requests:
+            storage: 1Gi

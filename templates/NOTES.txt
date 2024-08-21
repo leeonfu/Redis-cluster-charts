@@ -1,0 +1,7 @@
+1. Get the application URL by running these commands:
+    export redis_cluster_ip=$(kubectl get pods -l app={{ .Values.matchLabels }} -o jsonpath='{range.items[*]}{.status.podIP}:{{ .Values.service.port }} '|awk  '{for(i=1;i<={{ .Values.replicaCount }};i++){printf $i;printf " "}}')
+2. Execute the following command to add a cluster:
+    kubectl exec -it redis-cluster-0 -- redis-cli -p {{ .Values.service.port }} --cluster create --cluster-replicas 1 ${redis_cluster_ip}
+3. Get cluster information
+    kubectl exec -it redis-cluster-0 -- redis-cli cluster info
+    kubectl exec -it redis-cluster-0 -- redis-cli cluster nodes
